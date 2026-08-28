@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusTalent — Enterprise HRMS & Recruitment CRM</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Custom Design System -->
+  <link rel="stylesheet" href="/static/css/design_system.css">
+</head>
+<body>
+
+<div class="app-container">
+  <!-- Sidebar Navigation -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand-icon">NT</div>
+      <div>
+        <div class="brand-title">NexusTalent</div>
+        <div class="brand-subtitle">Enterprise HRMS & CRM</div>
+      </div>
+    </div>
+
+    <div class="nav-section-title">Core Subsystems</div>
+    <ul class="nav-links">
+      <li class="nav-item">
+        <button class="nav-btn active" data-tab="dashboard">
+          <span class="nav-icon">📊</span>
+          <span>Executive Pulse</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="hrms">
+          <span class="nav-icon">👥</span>
+          <span>Employee Master</span>
+          <span class="badge-tag" id="nav-emp-count">6</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="recruitment">
+          <span class="nav-icon">🎯</span>
+          <span>Recruitment CRM</span>
+          <span class="badge-tag" id="nav-req-count">2</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="attendance">
+          <span class="nav-icon">⏱️</span>
+          <span>Time & Attendance</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="payroll">
+          <span class="nav-icon">💳</span>
+          <span>Global Payroll</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="performance">
+          <span class="nav-icon">📈</span>
+          <span>OKRs & 9-Box Grid</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="helpdesk">
+          <span class="nav-icon">🎫</span>
+          <span>Internal HR CRM</span>
+          <span class="badge-tag" id="nav-ticket-count">1</span>
+        </button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-btn" data-tab="ai-insights">
+          <span class="nav-icon">🧠</span>
+          <span>AI Intelligence Radar</span>
+          <span class="badge-tag" style="background: rgba(139, 92, 246, 0.25); color: #c084fc;">AI</span>
+        </button>
+      </li>
+    </ul>
+
+    <div class="sidebar-footer">
+      <div class="user-avatar">AV</div>
+      <div>
+        <div style="font-size: 0.85rem; font-weight: 600;">Alexander Vance</div>
+        <div style="font-size: 0.72rem; color: var(--accent-cyan);">Superadmin / CEO</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Viewport -->
+  <main class="main-content">
+    <header class="top-bar">
+      <div class="page-title-group">
+        <h1 id="page-heading">Executive Workforce Pulse</h1>
+        <p class="page-subtitle" id="page-subheading">Real-time enterprise metrics, event telemetry & talent pipeline</p>
+      </div>
+
+      <div class="top-actions">
+        <div class="ws-status-badge">
+          <span class="ws-dot"></span>
+          <span id="ws-status-text">Live Event Stream</span>
+        </div>
+        <button class="btn btn-primary" onclick="App.quickTriggerAction()">⚡ Quick Action</button>
+      </div>
+    </header>
+
+    <div class="content-viewport" id="viewport">
+      <!-- Dynamic Views Render Here -->
+    </div>
+  </main>
+</div>
+
+<!-- Live Toaster Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- App Controller Script -->
+<script src="/static/js/app.js"></script>
+</body>
+</html>

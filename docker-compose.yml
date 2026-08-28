@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nexustalent-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=NexusTalent-Enterprise
+      - DEBUG=False
+      - SECRET_KEY=nexustalent-production-super-secret-jwt-vault-token-32b
+      - DATABASE_URL=sqlite+aiosqlite:///./data/nexustalent.db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - redis
+    volumes:
+      - ./data:/app/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: nexustalent-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"

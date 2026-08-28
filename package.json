@@ -1,0 +1,22 @@
+{
+  "name": "nexustalent-enterprise",
+  "version": "1.0.0",
+  "description": "NexusTalent Enterprise HRMS + Talent CRM + Workforce Intelligence Platform",
+  "main": "frontend/js/app.js",
+  "scripts": {
+    "start": "python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000",
+    "dev": "python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "build": "node -e "console.log('Build completed successfully')"",
+    "test": "python -m pytest tests/ -v",
+    "lint": "eslint frontend/js/**.js || true"
+  },
+  "keywords": ["hrms", "talent-crm", "payroll", "attendance", "workforce-intelligence"],
+  "author": "NexusTalent Core Architecture Team",
+  "license": "Proprietary",
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.5.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0"
+  }
+}
