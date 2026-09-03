@@ -1,17 +1,24 @@
+ifeq ($(OS),Windows_NT)
+	VENV_PY := $(wildcard .venv/Scripts/python.exe)
+else
+	VENV_PY := $(wildcard .venv/bin/python)
+endif
+PYTHON := $(if $(VENV_PY),$(VENV_PY),python)
+
 .PHONY: install build run test clean lint docker-build docker-run
 
 install:
-	pip install -r requirements.txt
+	$(PYTHON) -m pip install -r requirements.txt
 	npm install
 
 build:
-	python -m compileall backend/
+	$(PYTHON) -m compileall backend/
 
 run:
-	python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
+	$(PYTHON) -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload
 
 test:
-	python -m pytest tests/ -v
+	$(PYTHON) -m pytest tests/ -v
 
 lint:
 	python -m flake8 backend/ --max-line-length=120 || true

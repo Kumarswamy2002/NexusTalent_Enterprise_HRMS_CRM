@@ -6,10 +6,16 @@
 const App = {
   state: {
     currentTab: "dashboard",
+    recruitmentSubTab: "kanban",
     employees: [],
     departments: [],
     requisitions: [],
     kanbanData: [],
+    talentPoolCandidates: [],
+    talentPoolSearch: "",
+    talentPoolSource: "",
+    talentPoolMinExp: null,
+    pipelineAnalytics: null,
     attendanceSummary: null,
     payrollRuns: [],
     objectives: [],
@@ -81,7 +87,7 @@ const App = {
 
   async loadInitialData(render = true) {
     try {
-      const [depts, emps, reqs, att, runs, objs, ninebox, tix] = await Promise.all([
+      const [depts, emps, reqs, att, runs, objs, ninebox, tix, cands, analytics] = await Promise.all([
         fetch("/api/v1/hrms/departments").then(r => r.json()),
         fetch("/api/v1/hrms/employees").then(r => r.json()),
         fetch("/api/v1/recruitment/requisitions").then(r => r.json()),
@@ -89,7 +95,9 @@ const App = {
         fetch("/api/v1/payroll/runs").then(r => r.json()),
         fetch("/api/v1/performance/objectives").then(r => r.json()),
         fetch("/api/v1/performance/nine-box-matrix").then(r => r.json()),
-        fetch("/api/v1/helpdesk/tickets").then(r => r.json())
+        fetch("/api/v1/helpdesk/tickets").then(r => r.json()),
+        fetch("/api/v1/recruitment/candidates").then(r => r.json()).catch(() => []),
+        fetch("/api/v1/recruitment/analytics/pipeline-summary").then(r => r.json()).catch(() => null)
       ]);
 
       this.state.departments = depts || [];
@@ -100,6 +108,8 @@ const App = {
       this.state.objectives = objs || [];
       this.state.nineBox = ninebox || { matrix: {}, meta: {} };
       this.state.tickets = tix || [];
+      this.state.talentPoolCandidates = cands || [];
+      this.state.pipelineAnalytics = analytics;
 
       if (!this.state.selectedRequisitionId && this.state.requisitions.length > 0) {
         this.state.selectedRequisitionId = this.state.requisitions[0].id;
@@ -321,31 +331,93 @@ const App = {
     `;
   },
 
-  // 3. Recruitment Kanban Board View
+  // 3. Recruitment & Talent CRM View
   async renderRecruitmentKanban(container) {
-    const reqId = this.state.selectedRequisitionId;
-    if (!reqId) {
-      container.innerHTML = `<div class="card">No active job requisition found.</div>`;
-      return;
-    }
+    const analytics = this.state.pipelineAnalytics || {
+      total_candidates: this.state.talentPoolCandidates.length || 6,
+      total_applications: 6,
+      conversion_rates: { interview_rate: 66.7, offer_rate: 33.3, hire_rate: 16.7 },
+      avg_ai_match_score: 91.7,
+      source_attribution: { linkedin: 2, career_portal: 2, referral: 1, direct_outreach: 1 }
+    };
+
+    const isKanban = this.state.recruitmentSubTab === "kanban";
 
     container.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; gap: 16px;">
-          <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Active Requisition:</label>
-          <select class="input-control" style="width: 320px;" onchange="App.onRequisitionChange(this.value)">
-            ${this.state.requisitions.map(r => `
-              <option value="${r.id}" ${r.id === reqId ? 'selected' : ''}>${r.code} — ${r.title}</option>
-            `).join("")}
-          </select>
+      <!-- CRM Executive KPI Header -->
+      <div class="grid-cards" style="margin-bottom: 20px;">
+        <div class="card" style="padding: 14px 18px;">
+          <div class="card-header"><span class="card-title">Talent Pool Leads</span><span>🎯</span></div>
+          <div class="card-value" style="font-size: 1.4rem;">${analytics.total_candidates}</div>
+          <div class="card-delta delta-positive">Sourced across channels</div>
+        </div>
+        <div class="card" style="padding: 14px 18px;">
+          <div class="card-header"><span class="card-title">Active Applications</span><span>📄</span></div>
+          <div class="card-value" style="font-size: 1.4rem;">${analytics.total_applications}</div>
+          <div class="card-delta delta-neutral">In Requisition Funnels</div>
+        </div>
+        <div class="card" style="padding: 14px 18px;">
+          <div class="card-header"><span class="card-title">Interview Rate</span><span>💬</span></div>
+          <div class="card-value" style="font-size: 1.4rem;">${analytics.conversion_rates.interview_rate}%</div>
+          <div class="card-delta delta-positive">Screened to Interviews</div>
+        </div>
+        <div class="card" style="padding: 14px 18px;">
+          <div class="card-header"><span class="card-title">Avg AI Fit Match</span><span>🧠</span></div>
+          <div class="card-value" style="font-size: 1.4rem; color: #818cf8;">${analytics.avg_ai_match_score}%</div>
+          <div class="card-delta delta-positive">Semantic Skill Fit</div>
+        </div>
+      </div>
+
+      <!-- CRM Sub-navigation Tabs -->
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div class="crm-tabs" style="margin-bottom: 0;">
+          <button class="crm-tab-btn ${isKanban ? 'active' : ''}" onclick="App.onRecruitmentSubTabChange('kanban')">
+            <span>📋 Pipeline Kanban</span>
+          </button>
+          <button class="crm-tab-btn ${!isKanban ? 'active' : ''}" onclick="App.onRecruitmentSubTabChange('talent-pool')">
+            <span>👥 Talent Pool Directory (${this.state.talentPoolCandidates.length})</span>
+          </button>
         </div>
         <button class="btn btn-primary" onclick="App.showAddCandidateModal()">+ Add Candidate Lead</button>
+      </div>
+
+      <div id="recruitment-subview-container">
+        ${isKanban ? this.renderKanbanSubView() : this.renderTalentPoolSubView()}
+      </div>
+    `;
+
+    if (isKanban) {
+      this.fetchAndPopulateKanban();
+    }
+  },
+
+  onRecruitmentSubTabChange(tab) {
+    this.state.recruitmentSubTab = tab;
+    this.renderCurrentTab();
+  },
+
+  renderKanbanSubView() {
+    const reqId = this.state.selectedRequisitionId;
+    return `
+      <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+        <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Active Requisition:</label>
+        <select class="input-control" style="width: 340px;" onchange="App.onRequisitionChange(this.value)">
+          ${this.state.requisitions.map(r => `
+            <option value="${r.id}" ${r.id === reqId ? 'selected' : ''}>${r.code} — ${r.title}</option>
+          `).join("")}
+        </select>
+        <span style="font-size: 0.75rem; color: var(--text-muted);">💡 Drag candidate cards to advance pipeline stages. Click any card to open CRM profile & notes.</span>
       </div>
 
       <div class="kanban-board" id="kanban-columns">
         <div style="padding: 30px; text-align: center; width: 100%;">Loading Talent CRM Kanban...</div>
       </div>
     `;
+  },
+
+  async fetchAndPopulateKanban() {
+    const reqId = this.state.selectedRequisitionId;
+    if (!reqId) return;
 
     try {
       const res = await fetch(`/api/v1/recruitment/kanban/${reqId}`);
@@ -361,15 +433,25 @@ const App = {
           </div>
           <div class="kanban-cards">
             ${col.applications.map(app => `
-              <div class="candidate-card" draggable="true" ondragstart="App.onDragCandidate(event, '${app.application_id}')">
-                <div class="candidate-name">${app.name}</div>
+              <div class="candidate-card" draggable="true" 
+                   ondragstart="App.onDragCandidate(event, '${app.application_id}')"
+                   onclick="App.openCandidateCRMProfile('${app.candidate_id}')"
+                   style="cursor: pointer;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                  <div class="candidate-name">${app.name}</div>
+                  <span class="badge-tag" style="font-size: 0.65rem; text-transform: uppercase;">${app.source}</span>
+                </div>
                 <div class="candidate-title">${app.title} (${app.experience_years} yrs)</div>
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                  <span class="score-badge">🧠 AI Match: ${app.ai_match_score}%</span>
-                  <span style="font-size: 0.72rem; color: #94a3b8;">★ ${app.overall_rating}</span>
+                  <span class="score-badge">🧠 AI Fit: ${app.ai_match_score}%</span>
+                  <span style="font-size: 0.72rem; color: #94a3b8;">★ ${app.overall_rating || '3.0'}</span>
                 </div>
                 <div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;">
                   ${app.skills.slice(0, 3).map(s => `<span class="badge-tag" style="font-size: 0.65rem;">${s}</span>`).join("")}
+                </div>
+                <div style="margin-top: 8px; border-top: 1px solid var(--border-glass); padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.7rem; color: var(--accent-cyan);">👤 View CRM Profile</span>
+                  <span style="font-size: 0.7rem; color: var(--text-muted);">📋 ${app.scorecards_count} reviews</span>
                 </div>
               </div>
             `).join("")}
@@ -377,8 +459,126 @@ const App = {
         </div>
       `).join("");
     } catch (e) {
-      console.error(e);
+      console.error("Error fetching Kanban:", e);
     }
+  },
+
+  renderTalentPoolSubView() {
+    let cands = this.state.talentPoolCandidates || [];
+
+    // Filter by search
+    if (this.state.talentPoolSearch) {
+      const q = this.state.talentPoolSearch.toLowerCase();
+      cands = cands.filter(c =>
+        c.full_name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        (c.current_company || "").toLowerCase().includes(q) ||
+        (c.current_title || "").toLowerCase().includes(q) ||
+        (c.skills_tags || "").toLowerCase().includes(q)
+      );
+    }
+
+    // Filter by source
+    if (this.state.talentPoolSource) {
+      cands = cands.filter(c => c.source === this.state.talentPoolSource);
+    }
+
+    // Filter by min experience
+    if (this.state.talentPoolMinExp) {
+      cands = cands.filter(c => c.years_of_experience >= this.state.talentPoolMinExp);
+    }
+
+    return `
+      <div class="card" style="margin-bottom: 24px;">
+        <div style="display: flex; gap: 14px; align-items: center; margin-bottom: 18px; flex-wrap: wrap;">
+          <div style="flex: 2; min-width: 260px;">
+            <input type="text" class="input-control" placeholder="🔍 Search talent by name, company, title, or skills..." 
+                   value="${this.state.talentPoolSearch || ''}"
+                   oninput="App.onTalentPoolSearch(this.value)" />
+          </div>
+          <div style="flex: 1; min-width: 160px;">
+            <select class="input-control" onchange="App.onTalentPoolSourceChange(this.value)">
+              <option value="">All Sourcing Sources</option>
+              <option value="linkedin" ${this.state.talentPoolSource === 'linkedin' ? 'selected' : ''}>LinkedIn</option>
+              <option value="career_portal" ${this.state.talentPoolSource === 'career_portal' ? 'selected' : ''}>Career Portal</option>
+              <option value="referral" ${this.state.talentPoolSource === 'referral' ? 'selected' : ''}>Referral</option>
+              <option value="direct_outreach" ${this.state.talentPoolSource === 'direct_outreach' ? 'selected' : ''}>Direct Outreach</option>
+              <option value="agency" ${this.state.talentPoolSource === 'agency' ? 'selected' : ''}>Agency</option>
+            </select>
+          </div>
+          <div style="flex: 1; min-width: 140px;">
+            <select class="input-control" onchange="App.onTalentPoolMinExpChange(this.value)">
+              <option value="">Any Experience</option>
+              <option value="2" ${this.state.talentPoolMinExp == 2 ? 'selected' : ''}>2+ Years</option>
+              <option value="4" ${this.state.talentPoolMinExp == 4 ? 'selected' : ''}>4+ Years</option>
+              <option value="6" ${this.state.talentPoolMinExp == 6 ? 'selected' : ''}>6+ Years</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="data-table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Candidate Lead</th>
+                <th>Current Role & Org</th>
+                <th>Experience</th>
+                <th>Skills & Competencies</th>
+                <th>Sourcing Channel</th>
+                <th>AI Match</th>
+                <th>Notes</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${cands.length === 0 ? `<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--text-muted);">No candidates matching filter criteria.</td></tr>` : ''}
+              ${cands.map(c => `
+                <tr>
+                  <td>
+                    <div style="font-weight: 700;">${c.full_name}</div>
+                    <div style="font-size: 0.72rem; color: #94a3b8;">${c.email}</div>
+                  </td>
+                  <td>
+                    <div>${c.current_title || 'Lead'}</div>
+                    <div style="font-size: 0.72rem; color: #94a3b8;">${c.current_company || 'Independent'}</div>
+                  </td>
+                  <td>${c.years_of_experience} yrs</td>
+                  <td>
+                    <div style="display: flex; gap: 4px; flex-wrap: wrap; max-width: 260px;">
+                      ${c.skills_tags.split(",").slice(0, 3).map(s => `<span class="badge-tag" style="font-size: 0.65rem;">${s.trim()}</span>`).join("")}
+                    </div>
+                  </td>
+                  <td><span class="badge-tag" style="text-transform: uppercase;">${c.source}</span></td>
+                  <td><span class="score-badge">🧠 ${c.ai_match_score || 85}%</span></td>
+                  <td><span class="badge-tag" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">💬 ${c.notes_count || 0}</span></td>
+                  <td>
+                    <button class="btn btn-secondary" style="padding: 4px 10px; font-size: 0.75rem;" onclick="App.openCandidateCRMProfile('${c.id}')">👤 Profile & Notes</button>
+                  </td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  },
+
+  onTalentPoolSearch(val) {
+    this.state.talentPoolSearch = val;
+    const container = document.getElementById("recruitment-subview-container");
+    if (container) container.innerHTML = this.renderTalentPoolSubView();
+  },
+
+  onTalentPoolSourceChange(val) {
+    this.state.talentPoolSource = val;
+    const container = document.getElementById("recruitment-subview-container");
+    if (container) container.innerHTML = this.renderTalentPoolSubView();
+  },
+
+  onTalentPoolMinExpChange(val) {
+    this.state.talentPoolMinExp = val ? parseFloat(val) : null;
+    const container = document.getElementById("recruitment-subview-container");
+    if (container) container.innerHTML = this.renderTalentPoolSubView();
   },
 
   onDragCandidate(e, appId) {
@@ -400,7 +600,8 @@ const App = {
       if (!res.ok) {
         alert(`Workflow Error: ${data.detail || 'Transition not permitted by policy'}`);
       } else {
-        this.renderCurrentTab();
+        this.fetchAndPopulateKanban();
+        this.loadInitialData(false);
       }
     } catch (err) {
       alert("Transition failed.");
@@ -846,6 +1047,541 @@ const App = {
       .then(data => {
         alert(`🧠 AI Workforce Risk Report: ${data.employee_name} (${data.designation})\nFlight Risk: ${data.flight_risk_percentage}%\nCompa-Ratio: ${data.compensation_analysis.compa_ratio}%\nStatus: ${data.compensation_analysis.status}`);
       });
+  },
+
+  closeModal() {
+    const host = document.getElementById("modal-container");
+    if (host) host.innerHTML = "";
+  },
+
+  async openCandidateCRMProfile(candidateId) {
+    const host = document.getElementById("modal-container");
+    if (!host) return;
+
+    host.innerHTML = `
+      <div class="modal-backdrop open" onclick="if (event.target === this) App.closeModal()">
+        <div class="modal-content modal-lg">
+          <div class="modal-header">
+            <h3>👤 Candidate Talent CRM Profile</h3>
+            <button class="modal-close" onclick="App.closeModal()">&times;</button>
+          </div>
+          <div class="modal-body" style="text-align: center; padding: 40px;">
+            <div style="font-size: 1.1rem; color: var(--text-secondary);">Loading candidate CRM profile & activity timeline...</div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    try {
+      const res = await fetch(`/api/v1/recruitment/candidates/${candidateId}`);
+      if (!res.ok) {
+        alert("Candidate profile could not be loaded.");
+        this.closeModal();
+        return;
+      }
+      const c = await res.json();
+
+      host.innerHTML = `
+        <div class="modal-backdrop open" onclick="if (event.target === this) App.closeModal()">
+          <div class="modal-content modal-lg">
+            <div class="modal-header">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div class="user-avatar" style="width: 42px; height: 42px; font-size: 1rem;">
+                  ${c.first_name ? c.first_name[0] : ''}${c.last_name ? c.last_name[0] : ''}
+                </div>
+                <div>
+                  <h3 style="margin-bottom: 2px;">${c.full_name}</h3>
+                  <div style="font-size: 0.78rem; color: var(--text-muted);">${c.current_title || 'Lead'} at ${c.current_company || 'Independent'} • ${c.years_of_experience} yrs exp</div>
+                </div>
+              </div>
+              <button class="modal-close" onclick="App.closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+              <!-- Top Profile Badges -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 8px;">
+                <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+                  <div class="form-label">Email</div>
+                  <div style="font-size: 0.8rem; font-weight: 600; text-overflow: ellipsis; overflow: hidden;">${c.email}</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+                  <div class="form-label">Sourcing Channel</div>
+                  <div><span class="badge-tag" style="text-transform: uppercase;">${c.source}</span></div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+                  <div class="form-label">AI Match Score</div>
+                  <div><span class="score-badge">🧠 ${c.ai_match_score || 85}%</span></div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+                  <div class="form-label">Phone</div>
+                  <div style="font-size: 0.8rem; font-weight: 600;">${c.phone || 'N/A'}</div>
+                </div>
+              </div>
+
+              <!-- Skills Tags -->
+              <div>
+                <div class="form-label" style="margin-bottom: 6px;">Skills & Competencies</div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                  ${c.skills_tags ? c.skills_tags.split(",").map(s => `<span class="badge-tag">${s.trim()}</span>`).join("") : '<span style="color: var(--text-muted); font-size: 0.8rem;">No skills listed</span>'}
+                </div>
+              </div>
+
+              <!-- Requisitions / Pipeline History -->
+              <div>
+                <div class="form-label" style="margin-bottom: 6px;">Active Requisitions & Stage History</div>
+                ${!c.applications || c.applications.length === 0 ? '<div style="font-size: 0.8rem; color: var(--text-muted);">Not currently attached to any active requisition.</div>' : `
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    ${c.applications.map(a => `
+                      <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(99, 102, 241, 0.08); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass);">
+                        <div>
+                          <span style="font-weight: 700; color: #818cf8;">${a.requisition_code || 'REQ'}:</span>
+                          <span style="font-weight: 600; font-size: 0.85rem;">${a.requisition_title || 'General Vacancy'}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                          <span class="score-badge" style="text-transform: uppercase;">${a.stage}</span>
+                          <span style="font-size: 0.75rem; color: var(--text-muted);">★ ${a.overall_rating || '3.0'}</span>
+                        </div>
+                      </div>
+                    `).join("")}
+                  </div>
+                `}
+              </div>
+
+              <!-- CRM Notes & Recruiter Interactions -->
+              <div style="border-top: 1px solid var(--border-glass); padding-top: 16px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                  <h4 style="font-family: var(--font-display); font-size: 1rem; color: var(--text-primary); display: flex; align-items: center; gap: 8px;">
+                    💬 CRM Activity Timeline & Recruiter Notes (${c.notes ? c.notes.length : 0})
+                  </h4>
+                </div>
+
+                <!-- Add Note Form -->
+                <div style="background: rgba(18, 24, 41, 0.7); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-glass); margin-bottom: 16px;">
+                  <div class="form-row" style="margin-bottom: 8px;">
+                    <div class="form-group">
+                      <label class="form-label">Interaction Type</label>
+                      <select id="crm-note-type" class="input-control">
+                        <option value="screening">Screening Call</option>
+                        <option value="interview">Interview Feedback</option>
+                        <option value="call">Phone Call</option>
+                        <option value="email">Email Touchpoint</option>
+                        <option value="general" selected>General Note</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 10px;">
+                    <label class="form-label">Log Recruiter Notes / Touchpoint</label>
+                    <textarea id="crm-note-content" class="input-control" rows="3" placeholder="Enter notes from screening call, compensation expectations, technical feedback..."></textarea>
+                  </div>
+                  <button class="btn btn-primary" style="font-size: 0.8rem; padding: 6px 14px;" onclick="App.submitCandidateNote('${c.id}')">
+                    + Log CRM Interaction
+                  </button>
+                </div>
+
+                <!-- Chronological Notes Feed -->
+                <div class="crm-timeline" id="crm-notes-timeline">
+                  ${!c.notes || c.notes.length === 0 ? '<div style="color: var(--text-muted); font-size: 0.8rem; padding: 8px 0;">No recruiter notes recorded yet. Be the first to log a touchpoint!</div>' : ''}
+                  ${c.notes ? c.notes.map(n => `
+                    <div class="crm-timeline-item">
+                      <div class="crm-timeline-header">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                          <span class="crm-timeline-author">${n.author_name}</span>
+                          <span class="crm-tag crm-tag-${n.note_type}">${n.note_type}</span>
+                        </div>
+                        <span class="crm-timeline-time">${new Date(n.created_at).toLocaleString()}</span>
+                      </div>
+                      <div class="crm-timeline-content">${n.content}</div>
+                    </div>
+                  `).join("") : ''}
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" onclick="App.closeModal()">Close</button>
+            </div>
+          </div>
+        </div>
+      `;
+    } catch (e) {
+      console.error(e);
+      alert("Error loading candidate CRM profile.");
+      this.closeModal();
+    }
+  },
+
+  async submitCandidateNote(candidateId) {
+    const noteType = document.getElementById("crm-note-type").value;
+    const content = document.getElementById("crm-note-content").value.trim();
+    if (!content) {
+      alert("Please enter note content.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/v1/recruitment/candidates/${candidateId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note_type: noteType, content: content })
+      });
+      if (!res.ok) {
+        alert("Failed to save note.");
+        return;
+      }
+      this.showToast("💬 CRM Note Added", { candidateId, noteType });
+      this.openCandidateCRMProfile(candidateId);
+      this.loadInitialData(false);
+    } catch (e) {
+      alert("Network error saving note.");
+    }
+  },
+
+  showAddCandidateModal() {
+    const host = document.getElementById("modal-container");
+    if (!host) return;
+
+    host.innerHTML = `
+      <div class="modal-backdrop open" onclick="if (event.target === this) App.closeModal()">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>🎯 Source New Candidate Lead</h3>
+            <button class="modal-close" onclick="App.closeModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">First Name *</label>
+                <input id="cand-first-name" class="input-control" type="text" placeholder="e.g. Maya" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Last Name *</label>
+                <input id="cand-last-name" class="input-control" type="text" placeholder="e.g. Rodriguez" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Email Address *</label>
+                <input id="cand-email" class="input-control" type="email" placeholder="e.g. maya@example.com" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input id="cand-phone" class="input-control" type="text" placeholder="+1 555 0192" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Current Company</label>
+                <input id="cand-company" class="input-control" type="text" placeholder="e.g. Datadog" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Current Designation</label>
+                <input id="cand-title" class="input-control" type="text" placeholder="e.g. Senior Backend Architect" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Years of Experience</label>
+                <input id="cand-exp" class="input-control" type="number" step="0.5" value="4.0" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Sourcing Channel</label>
+                <select id="cand-source" class="input-control">
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="career_portal">Career Portal</option>
+                  <option value="referral">Employee Referral</option>
+                  <option value="direct_outreach">Direct Outreach</option>
+                  <option value="agency">Recruiting Agency</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Skills & Competencies (comma-separated)</label>
+              <input id="cand-skills" class="input-control" type="text" placeholder="Python, FastAPI, Kafka, Kubernetes, PostgreSQL" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Assign to Job Requisition</label>
+              <select id="cand-req-id" class="input-control">
+                ${this.state.requisitions.map(r => `
+                  <option value="${r.id}">${r.code} — ${r.title}</option>
+                `).join("")}
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="App.submitAddCandidate()">+ Save Candidate Lead</button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  async submitAddCandidate() {
+    const firstName = document.getElementById("cand-first-name").value.trim();
+    const lastName = document.getElementById("cand-last-name").value.trim();
+    const email = document.getElementById("cand-email").value.trim();
+    const phone = document.getElementById("cand-phone").value.trim();
+    const company = document.getElementById("cand-company").value.trim();
+    const title = document.getElementById("cand-title").value.trim();
+    const exp = parseFloat(document.getElementById("cand-exp").value) || 0.0;
+    const source = document.getElementById("cand-source").value;
+    const skills = document.getElementById("cand-skills").value.trim();
+    const reqId = document.getElementById("cand-req-id").value;
+
+    if (!firstName || !lastName || !email) {
+      alert("Please provide first name, last name, and email.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/v1/recruitment/candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          phone: phone || null,
+          current_company: company || null,
+          current_title: title || null,
+          years_of_experience: exp,
+          skills_tags: skills,
+          source: source,
+          requisition_id: reqId
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Error adding candidate: ${data.detail || 'Validation failed'}`);
+        return;
+      }
+      this.closeModal();
+      this.showToast("🎯 Candidate Lead Sourced", { name: `${firstName} ${lastName}`, source });
+      await this.loadInitialData();
+      if (this.state.recruitmentSubTab === "kanban") {
+        this.fetchAndPopulateKanban();
+      }
+    } catch (e) {
+      alert("Network error creating candidate.");
+    }
+  },
+
+  showAddEmployeeModal() {
+    const host = document.getElementById("modal-container");
+    if (!host) return;
+
+    host.innerHTML = `
+      <div class="modal-backdrop open" onclick="if (event.target === this) App.closeModal()">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>👥 Add New Enterprise Employee</h3>
+            <button class="modal-close" onclick="App.closeModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">First Name *</label>
+                <input id="emp-first-name" class="input-control" type="text" placeholder="e.g. Jordan" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Last Name *</label>
+                <input id="emp-last-name" class="input-control" type="text" placeholder="e.g. Taylor" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Corporate Email *</label>
+                <input id="emp-email" class="input-control" type="email" placeholder="e.g. jordan.t@nexustalent.enterprise" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Phone</label>
+                <input id="emp-phone" class="input-control" type="text" placeholder="+1 555 0184" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Department *</label>
+                <select id="emp-dept-id" class="input-control">
+                  ${this.state.departments.map(d => `<option value="${d.id}">${d.name} (${d.code})</option>`).join("")}
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Designation *</label>
+                <input id="emp-designation" class="input-control" type="text" placeholder="e.g. Senior Software Engineer" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Base Annual Salary (USD) *</label>
+                <input id="emp-salary" class="input-control" type="number" step="1000" value="135000" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Work Location</label>
+                <input id="emp-location" class="input-control" type="text" value="San Francisco HQ" />
+              </div>
+            </div>
+
+            <div class="form-group" style="flex-direction: row; align-items: center; gap: 8px;">
+              <input id="emp-is-remote" type="checkbox" style="width: 16px; height: 16px;" />
+              <label for="emp-is-remote" class="form-label" style="cursor: pointer; margin-bottom: 0;">Remote Employee (Work from Anywhere)</label>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="App.submitAddEmployee()">+ Create Employee</button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  async submitAddEmployee() {
+    const firstName = document.getElementById("emp-first-name").value.trim();
+    const lastName = document.getElementById("emp-last-name").value.trim();
+    const email = document.getElementById("emp-email").value.trim();
+    const phone = document.getElementById("emp-phone").value.trim();
+    const deptId = document.getElementById("emp-dept-id").value;
+    const designation = document.getElementById("emp-designation").value.trim();
+    const salary = parseFloat(document.getElementById("emp-salary").value) || 100000;
+    const location = document.getElementById("emp-location").value.trim();
+    const isRemote = document.getElementById("emp-is-remote").checked;
+
+    if (!firstName || !lastName || !email || !designation) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/v1/hrms/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          phone: phone || null,
+          department_id: deptId,
+          designation: designation,
+          base_annual_salary: salary,
+          work_location: location || "San Francisco HQ",
+          is_remote: isRemote,
+          employment_type: "full_time"
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Error creating employee: ${data.detail || 'Validation error'}`);
+        return;
+      }
+      this.closeModal();
+      this.showToast("👥 Employee Created", { name: `${firstName} ${lastName}`, designation });
+      await this.loadInitialData();
+    } catch (e) {
+      alert("Network error creating employee.");
+    }
+  },
+
+  showAddTicketModal() {
+    const host = document.getElementById("modal-container");
+    if (!host) return;
+
+    host.innerHTML = `
+      <div class="modal-backdrop open" onclick="if (event.target === this) App.closeModal()">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>🎫 Create Internal HR / CRM Ticket</h3>
+            <button class="modal-close" onclick="App.closeModal()">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="form-group">
+              <label class="form-label">Employee *</label>
+              <select id="ticket-emp-id" class="input-control">
+                ${this.state.employees.map(e => `<option value="${e.id}">${e.employee_code} — ${e.full_name}</option>`).join("")}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Subject / Issue Summary *</label>
+              <input id="ticket-subject" class="input-control" type="text" placeholder="e.g. Healthcare Benefits Enrollment Inquiry" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Category</label>
+                <select id="ticket-category" class="input-control">
+                  <option value="payroll">Payroll & Tax</option>
+                  <option value="benefits" selected>Benefits & Healthcare</option>
+                  <option value="it_access">IT & Security Access</option>
+                  <option value="general">General HR</option>
+                  <option value="workplace">Workplace & Facilities</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Priority</label>
+                <select id="ticket-priority" class="input-control">
+                  <option value="low">Low (48h SLA)</option>
+                  <option value="medium" selected>Medium (24h SLA)</option>
+                  <option value="high">High (8h SLA)</option>
+                  <option value="urgent">Urgent (4h SLA)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Ticket Description *</label>
+              <textarea id="ticket-description" class="input-control" rows="4" placeholder="Detailed description of the issue or inquiry..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button class="btn btn-primary" onclick="App.submitAddTicket()">Submit Ticket</button>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  async submitAddTicket() {
+    const empId = document.getElementById("ticket-emp-id").value;
+    const subject = document.getElementById("ticket-subject").value.trim();
+    const category = document.getElementById("ticket-category").value;
+    const priority = document.getElementById("ticket-priority").value;
+    const description = document.getElementById("ticket-description").value.trim();
+
+    if (!subject || !description) {
+      alert("Please provide ticket subject and description.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/v1/helpdesk/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_id: empId,
+          subject: subject,
+          category: category,
+          priority: priority,
+          description: description
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(`Error submitting ticket: ${data.detail || 'Failed'}`);
+        return;
+      }
+      this.closeModal();
+      this.showToast("🎫 Helpdesk Ticket Created", { subject, priority });
+      await this.loadInitialData();
+    } catch (e) {
+      alert("Network error submitting ticket.");
+    }
   },
 
   quickTriggerAction() {

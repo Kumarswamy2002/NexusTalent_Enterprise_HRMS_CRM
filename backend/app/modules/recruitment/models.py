@@ -80,6 +80,7 @@ class Candidate(Base):
     ai_match_score: Mapped[float] = mapped_column(Float, default=0.0)  # 0 to 100%
 
     applications: Mapped[List["CandidateApplication"]] = relationship("CandidateApplication", back_populates="candidate")
+    notes: Mapped[List["CandidateNote"]] = relationship("CandidateNote", back_populates="candidate", cascade="all, delete-orphan")
 
     @property
     def full_name(self) -> str:
@@ -116,3 +117,16 @@ class InterviewScorecard(Base):
     feedback_notes: Mapped[str] = mapped_column(Text, default="")
 
     application: Mapped[CandidateApplication] = relationship("CandidateApplication", back_populates="scorecards")
+
+
+class CandidateNote(Base):
+    """Recruiter Interaction Note / CRM Activity Log."""
+    __tablename__ = "recruitment_candidate_notes"
+
+    candidate_id: Mapped[str] = mapped_column(String(36), ForeignKey("recruitment_candidates.id"), index=True)
+    author_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    author_name: Mapped[str] = mapped_column(String(100), default="Recruiter")
+    note_type: Mapped[str] = mapped_column(String(30), default="general")  # call, email, screening, interview, general
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+
+    candidate: Mapped[Candidate] = relationship("Candidate", back_populates="notes")
