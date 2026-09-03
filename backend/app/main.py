@@ -87,14 +87,24 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str = "anonymous_c
         ws_manager.disconnect(websocket, client_id)
 
 
-# Health check
+# Health check & Telemetry status
 @app.get("/api/health")
 async def health_check():
     return {
         "status": "healthy",
         "system": settings.PROJECT_NAME,
         "version": settings.PROJECT_VERSION,
-        "environment": settings.ENVIRONMENT
+        "environment": settings.ENVIRONMENT,
+        "subsystems": [
+            "hrms",
+            "recruitment",
+            "attendance",
+            "payroll",
+            "performance",
+            "helpdesk",
+            "ai_workforce"
+        ],
+        "telemetry": "online"
     }
 
 
