@@ -16,10 +16,14 @@ from backend.app.modules.attendance.models import (
 from backend.app.modules.attendance.schemas import (
     ClockInRequest, ClockOutRequest, LeaveRequestCreate, LeaveApprovalAction
 )
-from backend.app.modules.attendance.geofence_engine import GeofenceEngine
 from backend.app.core.workflow_engine import WORKFLOW_REGISTRY, TransitionError
 from backend.app.core.event_bus import event_bus, DomainEvent, EventTypes
 from backend.app.modules.hrms.models import Employee
+from backend.app.modules.attendance.geofence_engine import GeofenceEngine
+
+
+def _get_val(enum_or_str: Any) -> str:
+    return enum_or_str.value if hasattr(enum_or_str, "value") else str(enum_or_str)
 
 
 class AttendanceService:
@@ -142,9 +146,16 @@ class AttendanceService:
             event_type=EventTypes.LEAVE_REQUESTED,
             tenant_id=tenant_id,
             actor_id=data.employee_id,
-            payload={"id": req.id, "days": req.total_days, "type": req.leave_type.value}
+            payload={"id": req.id, "days": req.total_days, "type": _get_val(req.leave_type)}
         ))
         return req
+
+    @staticmethod
+    async def get_leave_balances(session: AsyncSession, employee_id: str, tenant_id: str) -> List[Dict[str, Any]]:
+        stmt = select(LeaveBalance).where(LeaveBalance.employee_id == employee_id, LeaveBalance.tenant_id == tenant_id)
+        res = await session.execute(stmt)
+        balances = res.scalars().all()
+        return [b.to_dict() for b in balances]
 
     @staticmethod
     async def process_leave_action(
@@ -166,8 +177,9 @@ class AttendanceService:
         workflow = WORKFLOW_REGISTRY["leave_request"]
 
         # Universal state machine verification
-        if not workflow.can_transition(req.status.value, target_state, actor_roles):
-            raise TransitionError(f"Cannot transition leave from '{req.status.value}' to '{target_state}'")
+        current_status_val = _get_val(req.status)
+        if not workflow.can_transition(current_status_val, target_state, actor_roles):
+            raise TransitionError(f"Cannot transition leave from '{current_status_val}' to '{target_state}'")
 
         req.status = LeaveStatus.APPROVED if action == "approve" else LeaveStatus.REJECTED
         req.approved_by = actor_id
@@ -180,7 +192,7 @@ class AttendanceService:
             event_type=EventTypes.LEAVE_APPROVED if action == "approve" else EventTypes.LEAVE_REJECTED,
             tenant_id=tenant_id,
             actor_id=actor_id,
-            payload={"id": req.id, "status": req.status.value}
+            payload={"id": req.id, "status": _get_val(req.status)}
         ))
         return req
 

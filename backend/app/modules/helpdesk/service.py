@@ -112,7 +112,7 @@ class HelpdeskService:
         session.add(comment)
 
         # If waiting on employee, moving to in_progress
-        if ticket.status == TicketStatus.WAITING_ON_EMPLOYEE and not data.is_internal_note:
+        if ticket.status in (TicketStatus.WAITING_ON_EMPLOYEE, TicketStatus.WAITING_EMPLOYEE, "waiting_on_employee", "waiting_employee") and not data.is_internal_note:
             ticket.status = TicketStatus.IN_PROGRESS
 
         await session.commit()

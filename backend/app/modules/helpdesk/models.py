@@ -31,6 +31,7 @@ class TicketCategory(str, enum.Enum):
 class TicketStatus(str, enum.Enum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
+    WAITING_ON_EMPLOYEE = "waiting_on_employee"
     WAITING_EMPLOYEE = "waiting_employee"
     RESOLVED = "resolved"
     CLOSED = "closed"

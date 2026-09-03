@@ -72,7 +72,8 @@ async def transition_stage(
             tenant_id=user.tenant_id,
             rejection_reason=data.rejection_reason
         )
-        return {"status": "success", "application_id": app.id, "current_stage": app.stage.value}
+        stage_val = app.stage.value if hasattr(app.stage, "value") else str(app.stage)
+        return {"status": "success", "application_id": app.id, "current_stage": stage_val}
     except TransitionError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ValueError as e:
