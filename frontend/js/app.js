@@ -63,14 +63,20 @@ const App = {
     if (!container) return;
     const toast = document.createElement("div");
     toast.className = "toast";
+    const desc = typeof payload === "string" ? payload : (payload ? JSON.stringify(payload).slice(0, 80) : "");
     toast.innerHTML = `
       <div>
-        <div style="font-weight: 700;">${title}</div>
-        <div style="font-size: 0.75rem; color: #94a3b8;">${JSON.stringify(payload).slice(0, 70)}...</div>
+        <div style="font-weight: 700; font-size: 0.85rem;">${title}</div>
+        ${desc ? `<div style="font-size: 0.75rem; color: #94a3b8; margin-top: 2px;">${desc}</div>` : ""}
       </div>
     `;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 4000);
+    setTimeout(() => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateX(20px)";
+      toast.style.transition = "all 0.3s ease";
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
   },
 
   bindNavigation() {
@@ -1585,7 +1591,7 @@ const App = {
   },
 
   quickTriggerAction() {
-    alert("⚡ Quick Action Triggered: Auto-syncing enterprise telemetry across nodes.");
+    this.showToast("⚡ Quick Sync Triggered", "Auto-syncing enterprise workforce telemetry & live metrics across all nodes.");
     this.loadInitialData();
   }
 };
