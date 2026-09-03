@@ -53,3 +53,19 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment variables
+.env
