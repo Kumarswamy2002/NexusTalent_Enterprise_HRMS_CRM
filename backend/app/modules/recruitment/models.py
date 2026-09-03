@@ -3,7 +3,7 @@ NexusTalent Recruitment & Talent CRM Models
 Job Requisitions, Candidate Leads, Applications, Scorecards & Offer Management
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List, Dict, Any
 from sqlalchemy import String, Date, DateTime, Float, ForeignKey, Integer, Text, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -93,7 +93,7 @@ class CandidateApplication(Base):
     candidate_id: Mapped[str] = mapped_column(String(36), ForeignKey("recruitment_candidates.id"), index=True)
     requisition_id: Mapped[str] = mapped_column(String(36), ForeignKey("recruitment_requisitions.id"), index=True)
     stage: Mapped[PipelineStage] = mapped_column(String(30), default=PipelineStage.APPLIED, index=True)
-    stage_updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    stage_updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     rejection_reason: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     overall_rating: Mapped[float] = mapped_column(Float, default=0.0)  # 1.0 to 5.0
 

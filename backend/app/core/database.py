@@ -13,11 +13,16 @@ from backend.app.core.config import settings
 
 
 # Async engine creation
+connect_args = {}
+if "postgresql" in settings.DATABASE_URL or "asyncpg" in settings.DATABASE_URL:
+    connect_args = {"statement_cache_size": 0, "prepared_statement_cache_size": 0}
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
-    pool_pre_ping=True
+    pool_pre_ping=True,
+    connect_args=connect_args
 )
 
 AsyncSessionLocal = async_sessionmaker(
@@ -93,5 +98,19 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    import backend.app.modules.hrms.models  # noqa
+    import backend.app.modules.recruitment.models  # noqa
+    import backend.app.modules.attendance.models  # noqa
+    import backend.app.modules.payroll.models  # noqa
+    import backend.app.modules.performance.models  # noqa
+    import backend.app.modules.helpdesk.models  # noqa
+    import backend.app.core.notifications  # noqa
+
+    try:
+        from sqlalchemy import create_engine
+        sync_engine = create_engine(settings.SYNC_DATABASE_URL, pool_pre_ping=True)
+        Base.metadata.create_all(sync_engine)
+        sync_engine.dispose()
+    except Exception:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)

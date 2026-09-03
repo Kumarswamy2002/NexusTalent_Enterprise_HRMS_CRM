@@ -3,7 +3,7 @@ NexusTalent Time, Attendance & Leaves Models
 Attendance Logs, Geofence Boundaries, Shifts, Leave Allocations & Requests
 """
 
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone
 from typing import Optional, List
 from sqlalchemy import String, Date, DateTime, Time, Float, ForeignKey, Integer, Text, Boolean, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -51,8 +51,8 @@ class AttendanceRecord(Base):
 
     employee_id: Mapped[str] = mapped_column(String(36), ForeignKey("hrms_employees.id"), index=True)
     work_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
-    clock_in: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-    clock_out: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    clock_in: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    clock_out: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
     # Geofence validation
     attendance_type: Mapped[AttendanceType] = mapped_column(String(20), default=AttendanceType.OFFICE)

@@ -3,7 +3,7 @@ NexusTalent Helpdesk Models
 Internal HR Service Delivery, Ticket Queues, SLA Escalations & Knowledge Base
 """
 
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from typing import Optional, List
 from sqlalchemy import String, Date, DateTime, Float, ForeignKey, Integer, Text, Boolean, Enum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -25,19 +25,19 @@ class TicketCategory(str, enum.Enum):
     IT_ASSETS = "it_assets"
     WORKPLACE_RELATIONS = "workplace_relations"
     POLICY_INQUIRY = "policy_inquiry"
+    GENERAL = "general"
 
 
 class TicketStatus(str, enum.Enum):
     OPEN = "open"
     IN_PROGRESS = "in_progress"
-    WAITING_ON_EMPLOYEE = "waiting_on_employee"
+    WAITING_EMPLOYEE = "waiting_employee"
     RESOLVED = "resolved"
     CLOSED = "closed"
-    CANCELLED = "cancelled"
 
 
 class HelpdeskTicket(Base):
-    """Internal HR CRM Ticket."""
+    """Employee support request and internal service ticket."""
     __tablename__ = "helpdesk_tickets"
 
     ticket_number: Mapped[str] = mapped_column(String(30), unique=True, index=True)
@@ -52,7 +52,7 @@ class HelpdeskTicket(Base):
     assigned_to_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("hrms_employees.id"), nullable=True)
     sla_target_hours: Mapped[int] = mapped_column(Integer, default=24)
     is_sla_breached: Mapped[bool] = mapped_column(Boolean, default=False)
-    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     employee: Mapped["backend.app.modules.hrms.models.Employee"] = relationship("Employee", foreign_keys=[employee_id])
     assignee: Mapped[Optional["backend.app.modules.hrms.models.Employee"]] = relationship("Employee", foreign_keys=[assigned_to_id])

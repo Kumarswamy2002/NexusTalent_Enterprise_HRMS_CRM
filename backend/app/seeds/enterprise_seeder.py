@@ -20,7 +20,10 @@ from backend.app.modules.attendance.models import (
 from backend.app.modules.payroll.models import SalaryStructure, PayrollRun, Payslip, PayrollRunStatus
 from backend.app.modules.performance.models import Objective, KeyResult, NineBoxAssessment, OKRLevel, GoalStatus
 from backend.app.modules.performance.nine_box_engine import NineBoxEngine
+import logging
 from backend.app.modules.helpdesk.models import HelpdeskTicket, TicketCategory, TicketPriority, TicketStatus, TicketComment
+
+logger = logging.getLogger("EnterpriseSeeder")
 
 
 async def seed_enterprise_data(session: AsyncSession):
@@ -31,7 +34,7 @@ async def seed_enterprise_data(session: AsyncSession):
     if (check.scalar() or 0) > 0:
         return
 
-    print("🌱 Seeding Enterprise NexusTalent Data...")
+    logger.info("Seeding Enterprise NexusTalent Data...")
 
     # 1. Create Departments
     dept_eng = Department(id="dept_eng", tenant_id=tenant, name="Engineering & AI", code="ENG", budget=2500000.0, location="San Francisco HQ")
@@ -402,4 +405,4 @@ async def seed_enterprise_data(session: AsyncSession):
     session.add(comment1)
 
     await session.commit()
-    print("✅ NexusTalent Enterprise Data Successfully Seeded!")
+    logger.info("NexusTalent Enterprise Data Successfully Seeded!")
