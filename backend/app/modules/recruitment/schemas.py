@@ -61,3 +61,64 @@ class KanbanColumn(BaseModel):
     label: str
     count: int
     applications: List[Dict[str, Any]]
+
+
+class CandidateNoteCreate(BaseModel):
+    note_type: str = "general"  # call, email, screening, interview, general
+    content: str
+
+
+class CandidateNoteOut(BaseModel):
+    id: str
+    candidate_id: str
+    author_id: str
+    author_name: str
+    note_type: str
+    content: str
+    created_at: datetime
+
+
+class CandidateOut(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    current_company: Optional[str] = None
+    current_title: Optional[str] = None
+    years_of_experience: float = 0.0
+    skills_tags: str = ""
+    source: str
+    ai_match_score: float = 0.0
+    application_count: int = 0
+    notes_count: int = 0
+    created_at: datetime
+
+
+class CandidateDetailOut(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    full_name: str
+    email: str
+    phone: Optional[str] = None
+    current_company: Optional[str] = None
+    current_title: Optional[str] = None
+    years_of_experience: float = 0.0
+    skills_tags: str = ""
+    source: str
+    resume_url: Optional[str] = None
+    ai_match_score: float = 0.0
+    applications: List[Dict[str, Any]] = []
+    notes: List[CandidateNoteOut] = []
+    created_at: datetime
+
+
+class PipelineAnalyticsOut(BaseModel):
+    total_candidates: int
+    total_applications: int
+    stage_breakdown: Dict[str, int]
+    source_attribution: Dict[str, int]
+    avg_ai_match_score: float
+    conversion_rates: Dict[str, float]
